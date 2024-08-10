@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
 
 use wasm_bindgen_futures::spawn_local;
 use web_sys::wasm_bindgen::JsCast;
@@ -61,11 +61,11 @@ where
         self
     }
 
-    pub fn on_zoom<F>(&self, callback: F) -> OnZoom<State, Action, F>
+    pub fn on_zoom_end<F>(&self, callback: F) -> OnZoomEnd<State, Action, F>
     where
         F: Fn(&mut State, f64) + 'static,
     {
-        on_zoom(callback)
+        on_zoom_end(callback)
     }
 
     pub fn center(mut self, lat: f64, lng: f64) -> Self {
@@ -87,7 +87,12 @@ where
     C::ViewState: MapChildViewState,
 {
     leaflet_map: leaflet::Map,
-    children: Rc<RefCell<Vec<(C::Element, C::ViewState)>>>,
+    children: Vec<(C::Element, C::ViewState)>,
+}
+
+#[derive(Debug)]
+enum MapMessage {
+    InitMap,
 }
 
 impl<State, Action, C> View<State, Action, ViewCtx, DynMessage> for Map<State, Action, C>
@@ -117,32 +122,23 @@ where
         let html_el = pod.node.unchecked_ref::<web_sys::HtmlElement>();
         let leaflet_map = leaflet::Map::new_with_element(html_el, &map_options);
 
-        let children = Rc::new(RefCell::new(
-            self.children
-                .iter()
-                .map(|c| c.build(ctx))
-                .collect::<Vec<_>>(),
-        ));
+        let children = self
+            .children
+            .iter()
+            .map(|c| c.build(ctx))
+            .collect::<Vec<_>>();
 
         let view_state = MapViewState {
             leaflet_map,
             children,
         };
 
-        let children = Rc::clone(&view_state.children);
-        let leaflet_map = view_state.leaflet_map.clone();
-        let zoom = self.zoom;
-        let center = self.center;
         // We have to postpone the map initiation
         // because the DOM element has been created at this point in time
         // but has not yet been mounted.
+        let thunk = ctx.message_thunk();
         spawn_local(async move {
-            apply_zoom_and_center(&leaflet_map, zoom, center);
-            children.borrow_mut().iter_mut().for_each(
-                |(_, child_view_state): &mut (_, C::ViewState)| {
-                    child_view_state.after_build(&leaflet_map);
-                },
-            );
+            thunk.push_message(MapMessage::InitMap);
         });
         (pod.into(), view_state)
     }
@@ -157,11 +153,12 @@ where
         if prev.zoom != self.zoom || prev.center != self.center {
             apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
         }
-        view_state.children.borrow_mut().iter_mut().for_each(
-            |(_, child_view_state): &mut (_, C::ViewState)| {
+        view_state
+            .children
+            .iter_mut()
+            .for_each(|(_, child_view_state): &mut (_, C::ViewState)| {
                 child_view_state.after_rebuild(&view_state.leaflet_map);
-            },
-        );
+            });
         element
     }
 
@@ -171,12 +168,22 @@ where
 
     fn message(
         &self,
-        _: &mut Self::ViewState,
+        view_state: &mut Self::ViewState,
         _: &[ViewId],
-        _: DynMessage,
+        message: DynMessage,
         _: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        todo!()
+        match *message.downcast().unwrap() {
+            MapMessage::InitMap => {
+                apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
+                view_state.children.iter_mut().for_each(
+                    |(_, child_view_state): &mut (_, C::ViewState)| {
+                        child_view_state.after_build(&view_state.leaflet_map);
+                    },
+                );
+            }
+        }
+        MessageResult::Nop
     }
 }
 

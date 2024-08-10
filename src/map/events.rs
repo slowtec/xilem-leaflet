@@ -1,21 +1,23 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use xilem_web::{
     core::{MessageResult, Mut, NoElement, View, ViewId, ViewMarker},
-    DynMessage, ViewCtx,
+    DynMessage, MessageThunk, ViewCtx,
 };
 
-pub fn on_zoom<State, Action, F>(callback: F) -> OnZoom<State, Action, F>
+use crate::MapChildViewState;
+
+pub fn on_zoom_end<State, Action, F>(callback: F) -> OnZoomEnd<State, Action, F>
 where
     F: Fn(&mut State, f64) + 'static,
 {
-    OnZoom {
+    OnZoomEnd {
         callback,
         phantom: PhantomData,
     }
 }
 
-pub struct OnZoom<State, Action, F>
+pub struct OnZoomEnd<State, Action, F>
 where
     F: Fn(&mut State, f64) + 'static,
 {
@@ -23,12 +25,34 @@ where
     phantom: PhantomData<fn() -> (State, Action)>,
 }
 
-impl<State, Action, F> ViewMarker for OnZoom<State, Action, F> where F: Fn(&mut State, f64) + 'static
-{}
+impl<State, Action, F> ViewMarker for OnZoomEnd<State, Action, F> where
+    F: Fn(&mut State, f64) + 'static
+{
+}
 
-pub struct OnZoomViewState;
+pub struct OnZoomEndViewState {
+    thunk: Rc<MessageThunk>,
+}
 
-impl<State, Action, F> View<State, Action, ViewCtx, DynMessage> for OnZoom<State, Action, F>
+#[derive(Debug)]
+enum Message {
+    ZoomEnd(f64),
+}
+
+impl MapChildViewState for OnZoomEndViewState {
+    fn after_build(&mut self, map: &leaflet::Map) {
+        let thunk = Rc::clone(&self.thunk);
+        let map = map.clone();
+        map.clone().on_zoom_end(Box::new(move |_| {
+            let zoom = map.get_zoom();
+            thunk.push_message(Message::ZoomEnd(zoom));
+        }));
+    }
+
+    fn after_rebuild(&mut self, _: &leaflet::Map) {}
+}
+
+impl<State, Action, F> View<State, Action, ViewCtx, DynMessage> for OnZoomEnd<State, Action, F>
 where
     State: 'static,
     Action: 'static,
@@ -36,11 +60,12 @@ where
 {
     type Element = NoElement;
 
-    type ViewState = OnZoomViewState;
+    type ViewState = OnZoomEndViewState;
 
-    fn build(&self, _: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
-        // TODO:
-        todo!()
+    fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
+        let thunk = Rc::new(ctx.message_thunk());
+        let view_state = OnZoomEndViewState { thunk };
+        (NoElement, view_state)
     }
 
     fn rebuild<'el>(
@@ -61,9 +86,14 @@ where
         &self,
         _: &mut Self::ViewState,
         _: &[ViewId],
-        _: DynMessage,
-        _: &mut State,
+        message: DynMessage,
+        state: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        todo!()
+        match *message.downcast::<Message>().unwrap() {
+            Message::ZoomEnd(zoom) => {
+                (self.callback)(state, zoom);
+            }
+        }
+        MessageResult::Nop
     }
 }

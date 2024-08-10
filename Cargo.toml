@@ -31,7 +31,8 @@ web-sys = "0.3.69"
 xilem_web = "0.1.0"
 
 [patch.crates-io.xilem_web]
-git = "https://github.com/linebender/xilem"
+git = "https://github.com/slowtec/xilem"
+branch = "make-message-thunk-public"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
