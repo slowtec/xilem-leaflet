@@ -50,9 +50,9 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
                     };
                 }),
         )),
-        map(vec![tile_layer(
+        map(tile_layer(
             "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        )])
+        ))
         .zoom(state.zoom)
         .center(state.center.0, state.center.1), // TODO .on_zoom(|state, zoom|{ })
     ))
