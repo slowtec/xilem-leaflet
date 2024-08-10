@@ -1,0 +1,36 @@
+[workspace]
+members = [ ]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.80"
+authors = ["Markus Kohlhase <markus.kohlhase@slowtec.de>"]
+license = "MIT/Apache-2.0"
+description = "A Leaflet.js wrapper for Xilem web"
+homepage = "https://github.com/slowtec/xilem-leaflet"
+repository = "https://github.com/slowtec/xilem-leaflet"
+
+[package]
+name = "xilem-leaflet"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+leaflet = "0.4.1"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_const_for_fn = "warn"
+
+# The error types returned should be self-explanatory.
+missing_errors_doc = "allow"
+
+# This is a matter of taste... and I just like it that way ;-P
+mod_module_files = "allow"
