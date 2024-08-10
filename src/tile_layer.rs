@@ -1,30 +1,23 @@
 use std::marker::PhantomData;
 
 use xilem_web::{
-    core::{MessageResult, Mut, NoElement, View, ViewId, ViewMarker},
-    DynMessage, ViewCtx,
+    core::{MessageResult, Mut, View, ViewId, ViewMarker},
+    ViewCtx,
 };
 
-use crate::{MapChild, MapChildViewState};
+use crate::{MapAction, MapChildElement, MapChildViewState, MapMessage};
 
-impl<State, Action> ViewMarker for TileLayer<State, Action> {}
-pub fn tile_layer<State, Action>(url_template: &'static str) -> TileLayer<State, Action> {
+impl<State> ViewMarker for TileLayer<State> {}
+pub fn tile_layer<State>(url_template: &'static str) -> TileLayer<State> {
     TileLayer {
         url_template,
         phantom: PhantomData,
     }
 }
 
-pub struct TileLayer<State, Action> {
+pub struct TileLayer<State> {
     url_template: &'static str,
-    phantom: PhantomData<fn() -> (State, Action)>,
-}
-
-impl<State, Action> MapChild<State, Action> for TileLayer<State, Action>
-where
-    State: 'static,
-    Action: 'static,
-{
+    phantom: PhantomData<fn() -> State>,
 }
 
 pub struct TileLayerViewState {
@@ -41,19 +34,15 @@ impl MapChildViewState for TileLayerViewState {
     }
 }
 
-impl<State, Action> View<State, Action, ViewCtx, DynMessage> for TileLayer<State, Action>
-where
-    State: 'static,
-    Action: 'static,
-{
-    type Element = NoElement;
+impl<State: 'static> View<State, MapAction, ViewCtx, MapMessage> for TileLayer<State> {
+    type Element = MapChildElement;
 
     type ViewState = TileLayerViewState;
 
     fn build(&self, _: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
         let tile_layer = leaflet::TileLayer::new(self.url_template);
         let view_state = TileLayerViewState { tile_layer };
-        (NoElement, view_state)
+        (MapChildElement, view_state)
     }
 
     fn rebuild<'el>(
@@ -77,9 +66,9 @@ where
         &self,
         _: &mut Self::ViewState,
         _: &[ViewId],
-        _: DynMessage,
+        _: MapMessage,
         _: &mut State,
-    ) -> MessageResult<Action, DynMessage> {
+    ) -> MessageResult<MapAction, MapMessage> {
         todo!()
     }
 }
