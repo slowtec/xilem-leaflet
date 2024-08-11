@@ -5,9 +5,8 @@ use xilem_web::{
     ViewCtx,
 };
 
-use crate::{MapAction, MapChildElement, MapChildViewState, MapMessage};
+use crate::{MapAction, MapChildElement, MapMessage};
 
-impl<State> ViewMarker for TileLayer<State> {}
 pub fn tile_layer<State>(url_template: &'static str) -> TileLayer<State> {
     TileLayer {
         url_template,
@@ -20,18 +19,10 @@ pub struct TileLayer<State> {
     phantom: PhantomData<fn() -> State>,
 }
 
+impl<State> ViewMarker for TileLayer<State> {}
+
 pub struct TileLayerViewState {
     tile_layer: leaflet::TileLayer,
-}
-
-impl MapChildViewState for TileLayerViewState {
-    fn after_build(&mut self, map: &leaflet::Map) {
-        self.tile_layer.add_to(map);
-    }
-
-    fn after_rebuild(&mut self, _map: &leaflet::Map) {
-        // TODO replace tile layer
-    }
 }
 
 impl<State: 'static> View<State, MapAction, ViewCtx, MapMessage> for TileLayer<State> {
@@ -64,11 +55,17 @@ impl<State: 'static> View<State, MapAction, ViewCtx, MapMessage> for TileLayer<S
 
     fn message(
         &self,
-        _: &mut Self::ViewState,
+        view_state: &mut Self::ViewState,
         _: &[ViewId],
-        _: MapMessage,
+        message: MapMessage,
         _: &mut State,
     ) -> MessageResult<MapAction, MapMessage> {
-        todo!()
+        match message {
+            MapMessage::MapHasMounted(map) => {
+                view_state.tile_layer.add_to(&map);
+            }
+            _ => {}
+        }
+        MessageResult::Nop
     }
 }

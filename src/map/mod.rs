@@ -106,13 +106,6 @@ impl<V, State, Action> MapChild<State, Action> for V where
 {
 }
 
-/// This is a hack that allows children of the map
-/// to get access to [`leaflet::Map`].
-pub trait MapChildViewState {
-    fn after_build(&mut self, map: &leaflet::Map);
-    fn after_rebuild(&mut self, map: &leaflet::Map);
-}
-
 pub struct Map<State, Action, Children> {
     map_view: MapDomView<State, Action>,
     children: Children,
@@ -127,7 +120,7 @@ impl<State, Action, Children> Map<State, Action, Children> {
         self
     }
 
-    pub fn on_zoom_end<F>(&self, callback: F) -> OnZoomEnd<State, Action, F>
+    pub fn on_zoom_end<F>(&self, callback: F) -> OnZoomEnd<State, F>
     where
         F: Fn(&mut State, f64) + 'static,
     {
@@ -148,9 +141,11 @@ pub struct MapViewState<DS, CS> {
     leaflet_map: leaflet::Map,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum MapMessage {
     InitMap,
+    MapHasMounted(leaflet::Map),
+    ZoomEnd(f64),
 }
 
 /// Distinctive id for better debugging
@@ -239,6 +234,7 @@ where
         message: DynMessage,
         app_state: &mut State,
     ) -> MessageResult<Action, DynMessage> {
+        log::debug!("Handle map message {message:?}");
         let (first, rest) = path.split_first().unwrap_throw();
         assert_eq!(*first, MAP_VIEW_ID);
         let message = *message.downcast().unwrap();
@@ -249,7 +245,7 @@ where
                 let children_message = self.children.seq_message(
                     &mut view_state.children_state,
                     rest,
-                    message,
+                    MapMessage::MapHasMounted(view_state.leaflet_map.clone()),
                     app_state,
                 );
                 match children_message {
@@ -261,6 +257,7 @@ where
                     MessageResult::Stale(_) => MessageResult::Stale(Box::new(())),
                 }
             }
+            _ => MessageResult::Nop,
         }
     }
 }

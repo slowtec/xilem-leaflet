@@ -26,13 +26,13 @@ repository.workspace = true
 
 [dependencies]
 leaflet = "0.4.1"
+log = "0.4.22"
 wasm-bindgen-futures = "0.4.42"
 web-sys = "0.3.69"
 xilem_web = "0.1.0"
 
 [patch.crates-io.xilem_web]
-git = "https://github.com/slowtec/xilem"
-branch = "make-message-thunk-public"
+git = "https://github.com/linebender/xilem"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

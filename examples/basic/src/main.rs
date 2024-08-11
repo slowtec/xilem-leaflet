@@ -50,11 +50,15 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
                     };
                 }),
         )),
-        map(tile_layer(
-            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        map((
+            tile_layer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),
+            // TODO:
+            // on_zoom_end(|_state, _zoom| {
+            //     log::debug!("Zoom ended");
+            // }),
         ))
         .zoom(state.zoom)
-        .center(state.center.0, state.center.1), // TODO .on_zoom(|state, zoom|{ })
+        .center(state.center.0, state.center.1),
     ))
     .style(style("width", "100%"))
     .style(style("height", "100%"))
