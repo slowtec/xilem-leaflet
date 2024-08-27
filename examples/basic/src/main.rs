@@ -1,8 +1,8 @@
-use web_sys::wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_leaflet::{map, tile_layer};
 use xilem_web::{
     document_body,
     elements::html,
+    input_event_target_value,
     interfaces::{Element, HtmlElement},
     style, App,
 };
@@ -23,6 +23,8 @@ impl Default for AppState {
     }
 }
 
+const TILE_LAYER_URL: &str = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
 fn app_logic(state: &mut AppState) -> impl Element<AppState> {
     html::div((
         html::label((
@@ -30,7 +32,9 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
             html::input(())
                 .attr("value", state.zoom)
                 .on_input(|state: &mut AppState, ev| {
-                    let value = event_target_value(ev);
+                    let Some(value) = input_event_target_value(&ev) else {
+                        return;
+                    };
                     state.zoom_input = if !value.trim().is_empty() {
                         Some(value)
                     } else {
@@ -51,7 +55,7 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
                 }),
         )),
         map((
-            tile_layer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),
+            tile_layer(TILE_LAYER_URL),
             // TODO:
             // on_zoom_end(|_state, _zoom| {
             //     log::debug!("Zoom ended");
@@ -62,13 +66,6 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
     ))
     .style(style("width", "100%"))
     .style(style("height", "100%"))
-}
-
-fn event_target_value(ev: web_sys::Event) -> String {
-    ev.target()
-        .unwrap_throw()
-        .unchecked_into::<web_sys::HtmlInputElement>()
-        .value()
 }
 
 fn main() {
