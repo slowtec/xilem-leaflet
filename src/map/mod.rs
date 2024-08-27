@@ -29,7 +29,7 @@ impl<V, State> MapChildren<State> for V where
 {
 }
 
-type MapDomView<T, A> = Style<html::Div<T, A>, T, A>;
+type MapDomView<State, Action> = Style<html::Div<(), State, Action>, State, Action>;
 
 pub fn map<State, Action, Children>(children: Children) -> Map<State, Action, Children>
 where

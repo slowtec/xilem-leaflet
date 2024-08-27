@@ -27,8 +27,8 @@ repository.workspace = true
 [dependencies]
 leaflet = "0.4.1"
 log = "0.4.22"
-wasm-bindgen-futures = "0.4.42"
-web-sys = "0.3.69"
+wasm-bindgen-futures = "0.4.43"
+web-sys = "0.3.70"
 xilem_web = "0.1.0"
 
 [patch.crates-io.xilem_web]
