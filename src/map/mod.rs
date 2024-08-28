@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use wasm_bindgen_futures::spawn_local;
 use web_sys::wasm_bindgen::UnwrapThrowExt;
@@ -9,23 +10,56 @@ use xilem_web::{
     },
     elements::html,
     interfaces::HtmlElement,
-    style, DynMessage, Style, ViewCtx,
+    style, DynMessage, MessageThunk, Style, ViewCtx,
 };
 
 mod events;
 pub use self::events::*;
+
+pub struct MapCtx {
+    id_path: Vec<ViewId>,
+    map: leaflet::Map,
+    thunk: Rc<MessageThunk>,
+}
+
+impl MapCtx {
+    fn new(map: leaflet::Map, thunk: MessageThunk) -> Self {
+        Self {
+            id_path: Vec::new(),
+            map,
+            thunk: Rc::new(thunk),
+        }
+    }
+    pub const fn map(&self) -> &leaflet::Map {
+        &self.map
+    }
+}
+
+impl ViewPathTracker for MapCtx {
+    fn push_id(&mut self, id: ViewId) {
+        self.id_path.push(id);
+    }
+
+    fn pop_id(&mut self) {
+        self.id_path.pop();
+    }
+
+    fn view_path(&mut self) -> &[ViewId] {
+        &self.id_path
+    }
+}
 
 // I think Action could probably be used to signify `Map` some changes, it could match
 
 pub enum MapAction {}
 
 pub trait MapChildren<State>:
-    ViewSequence<State, MapAction, ViewCtx, MapChildElement, MapMessage>
+    ViewSequence<State, MapAction, MapCtx, MapChildElement, MapMessage>
 {
 }
 
 impl<V, State> MapChildren<State> for V where
-    V: ViewSequence<State, MapAction, ViewCtx, MapChildElement, MapMessage>
+    V: ViewSequence<State, MapAction, MapCtx, MapChildElement, MapMessage>
 {
 }
 
@@ -152,14 +186,13 @@ impl<State, Action, Children> ViewMarker for Map<State, Action, Children> {}
 pub struct MapViewState<DS, CS> {
     map_dom_state: DS,
     children_state: CS,
-    leaflet_map: leaflet::Map,
+    map_ctx: MapCtx,
 }
 
 #[derive(Debug, Clone)]
 pub enum MapMessage {
     InitMap,
-    MapHasMounted(leaflet::Map),
-    ZoomEnd(f64),
+    ZoomEnd(f64), // TODO: remove this
 }
 
 /// Distinctive ID for better debugging
@@ -187,10 +220,11 @@ where
             let leaflet_map = leaflet::Map::new_with_element(&map_dom_element.node, &map_options);
 
             let mut elements = AppendVec::default();
-            let children_state = self.children.seq_build(ctx, &mut elements);
+            let mut map_ctx = MapCtx::new(leaflet_map.clone(), ctx.message_thunk());
+            let children_state = self.children.seq_build(&mut map_ctx, &mut elements);
 
             let view_state = MapViewState {
-                leaflet_map,
+                map_ctx,
                 map_dom_state,
                 children_state,
             };
@@ -217,18 +251,20 @@ where
         ctx: &mut ViewCtx,
         element: Mut<'el, Self::Element>,
     ) -> Mut<'el, Self::Element> {
+        log::debug!("Rebuild map");
         ctx.with_id(MAP_VIEW_ID, |ctx| {
             let element =
                 self.map_view
                     .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
             if prev.zoom != self.zoom || prev.center != self.center {
-                apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
+                apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
             }
             let mut splice = MapChildrenSplice;
+            log::debug!("seq_rebuild children");
             self.children.seq_rebuild(
                 &prev.children,
                 &mut view_state.children_state,
-                ctx,
+                &mut view_state.map_ctx,
                 &mut splice,
             );
             element
@@ -246,30 +282,16 @@ where
         view_state: &mut Self::ViewState,
         path: &[ViewId],
         message: DynMessage,
-        app_state: &mut State,
+        _: &mut State,
     ) -> MessageResult<Action, DynMessage> {
         log::debug!("Handle map message {message:?} for {path:?}");
-        let (first, rest) = path.split_first().unwrap_throw();
+        let (first, _) = path.split_first().unwrap_throw();
         assert_eq!(*first, MAP_VIEW_ID);
         let message = *message.downcast().unwrap();
         match message {
-            // if the message itself is not for this view, it could just be redirected with the path to a child
             MapMessage::InitMap => {
-                apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
-                let children_message = self.children.seq_message(
-                    &mut view_state.children_state,
-                    rest,
-                    MapMessage::MapHasMounted(view_state.leaflet_map.clone()),
-                    app_state,
-                );
-                match children_message {
-                    #[allow(unreachable_code)]
-                    // Could do something with the action message
-                    MessageResult::Action(action) => MessageResult::Action(match action {}),
-                    MessageResult::RequestRebuild => MessageResult::RequestRebuild,
-                    MessageResult::Nop => MessageResult::Nop,
-                    MessageResult::Stale(_) => MessageResult::Stale(Box::new(())),
-                }
+                apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
+                MessageResult::RequestRebuild
             }
             _ => {
                 // TODO: handle message
