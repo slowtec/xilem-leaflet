@@ -54,15 +54,13 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
                     };
                 }),
         )),
-        map((
-            tile_layer(TILE_LAYER_URL),
-            // TODO:
-            // on_zoom_end(|_state, _zoom| {
-            //     log::debug!("Zoom ended");
-            // }),
-        ))
-        .zoom(state.zoom)
-        .center(state.center.0, state.center.1),
+        map(tile_layer(TILE_LAYER_URL))
+            .center(state.center.0, state.center.1)
+            .zoom(state.zoom)
+            .on_zoom_end(|state: &mut AppState, zoom| {
+                log::debug!("Zoom has changed to {zoom}");
+                state.zoom = zoom;
+            }),
     ))
     .style(style("width", "100%"))
     .style(style("height", "100%"))

@@ -60,11 +60,9 @@ impl<State: 'static> View<State, MapAction, ViewCtx, MapMessage> for TileLayer<S
         message: MapMessage,
         _: &mut State,
     ) -> MessageResult<MapAction, MapMessage> {
-        match message {
-            MapMessage::MapHasMounted(map) => {
-                view_state.tile_layer.add_to(&map);
-            }
-            _ => {}
+        log::debug!("Handle message: {message:?}");
+        if let MapMessage::MapHasMounted(map) = message {
+            view_state.tile_layer.add_to(&map);
         }
         MessageResult::Nop
     }

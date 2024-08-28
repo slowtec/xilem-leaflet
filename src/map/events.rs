@@ -7,7 +7,7 @@ use xilem_web::{
 
 use crate::{MapAction, MapChildElement, MapMessage};
 
-pub fn on_zoom_end<State, F>(callback: F) -> OnZoomEnd<State, F>
+pub(crate) fn on_zoom_end<State, F>(callback: F) -> OnZoomEnd<State, F>
 where
     F: Fn(&mut State, f64) + 'static,
 {
@@ -48,9 +48,10 @@ where
         _: &Self,
         _: &mut Self::ViewState,
         _: &mut ViewCtx,
-        _: Mut<'el, Self::Element>,
+        el: Mut<'el, Self::Element>,
     ) -> Mut<'el, Self::Element> {
-        todo!()
+        // TODO:
+        el
     }
 
     fn teardown(&self, _: &mut Self::ViewState, _: &mut ViewCtx, _: Mut<Self::Element>) {

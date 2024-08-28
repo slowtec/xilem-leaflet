@@ -120,11 +120,25 @@ impl<State, Action, Children> Map<State, Action, Children> {
         self
     }
 
-    pub fn on_zoom_end<F>(&self, callback: F) -> OnZoomEnd<State, F>
+    pub fn on_zoom_end<F>(self, callback: F) -> Map<State, Action, (Children, OnZoomEnd<State, F>)>
     where
         F: Fn(&mut State, f64) + 'static,
     {
-        on_zoom_end(callback)
+        let Self {
+            map_view,
+            children,
+            zoom,
+            center,
+            phantom,
+        } = self;
+        let children = (children, on_zoom_end(callback));
+        Map {
+            map_view,
+            children,
+            zoom,
+            center,
+            phantom,
+        }
     }
 
     pub fn center(mut self, lat: f64, lng: f64) -> Self {
@@ -148,7 +162,7 @@ pub enum MapMessage {
     ZoomEnd(f64),
 }
 
-/// Distinctive id for better debugging
+/// Distinctive ID for better debugging
 const MAP_VIEW_ID: ViewId = ViewId::new(1236068);
 
 impl<State, Action, Children> View<State, Action, ViewCtx, DynMessage>
@@ -234,7 +248,7 @@ where
         message: DynMessage,
         app_state: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        log::debug!("Handle map message {message:?}");
+        log::debug!("Handle map message {message:?} for {path:?}");
         let (first, rest) = path.split_first().unwrap_throw();
         assert_eq!(*first, MAP_VIEW_ID);
         let message = *message.downcast().unwrap();
@@ -257,7 +271,10 @@ where
                     MessageResult::Stale(_) => MessageResult::Stale(Box::new(())),
                 }
             }
-            _ => MessageResult::Nop,
+            _ => {
+                // TODO: handle message
+                MessageResult::Nop
+            }
         }
     }
 }
