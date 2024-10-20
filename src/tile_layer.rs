@@ -38,13 +38,13 @@ impl<State: 'static> View<State, MapAction, MapCtx, MapMessage> for TileLayer<St
         (MapChildElement, view_state)
     }
 
-    fn rebuild<'el>(
+    fn rebuild(
         &self,
         prev: &Self,
         view_state: &mut Self::ViewState,
         map_ctx: &mut MapCtx,
-        element: Mut<'el, Self::Element>,
-    ) -> Mut<'el, Self::Element> {
+        _: Mut<Self::Element>,
+    ) {
         if prev.url_template != self.url_template {
             view_state.tile_layer = leaflet::TileLayer::new(self.url_template);
         }
@@ -52,8 +52,6 @@ impl<State: 'static> View<State, MapAction, MapCtx, MapMessage> for TileLayer<St
             view_state.tile_layer.add_to(map_ctx.map());
             view_state.added_to_map = true;
         }
-
-        element
     }
 
     fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, _: Mut<Self::Element>) {

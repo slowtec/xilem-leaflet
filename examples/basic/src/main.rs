@@ -1,10 +1,6 @@
 use xilem_leaflet::{map, tile_layer};
 use xilem_web::{
-    document_body,
-    elements::html,
-    input_event_target_value,
-    interfaces::{Element, HtmlElement},
-    style, App,
+    document_body, elements::html, input_event_target_value, interfaces::Element, style, App,
 };
 
 struct AppState {
@@ -42,15 +38,11 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
                     };
                 })
                 .on_keyup(|state: &mut AppState, ev| {
-                    match &*ev.key() {
-                        "Enter" => {
-                            let Some(Ok(value)) = state.zoom_input.as_ref().map(|v| v.parse())
-                            else {
-                                return;
-                            };
-                            state.zoom = value;
-                        }
-                        _ => {}
+                    if &*ev.key() == "Enter" {
+                        let Some(Ok(value)) = state.zoom_input.as_ref().map(|v| v.parse()) else {
+                            return;
+                        };
+                        state.zoom = value;
                     };
                 }),
         )),

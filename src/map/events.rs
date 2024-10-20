@@ -48,15 +48,8 @@ where
         (MapChildElement, view_state)
     }
 
-    fn rebuild<'el>(
-        &self,
-        _: &Self,
-        _: &mut Self::ViewState,
-        _: &mut MapCtx,
-        el: Mut<'el, Self::Element>,
-    ) -> Mut<'el, Self::Element> {
+    fn rebuild(&self, _: &Self, _: &mut Self::ViewState, _: &mut MapCtx, _: Mut<Self::Element>) {
         // TODO:
-        el
     }
 
     fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, _: Mut<Self::Element>) {
@@ -70,11 +63,8 @@ where
         message: MapMessage,
         state: &mut State,
     ) -> MessageResult<MapAction, MapMessage> {
-        match message {
-            MapMessage::ZoomEnd(zoom) => {
-                (self.callback)(state, zoom);
-            }
-            _ => {}
+        if let MapMessage::ZoomEnd(zoom) = message {
+            (self.callback)(state, zoom);
         }
         MessageResult::Nop
     }

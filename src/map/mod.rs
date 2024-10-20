@@ -9,7 +9,7 @@ use xilem_web::{
         ViewMarker, ViewPathTracker, ViewSequence,
     },
     elements::html,
-    interfaces::HtmlElement,
+    interfaces::Element,
     style, DynMessage, MessageThunk, Style, ViewCtx,
 };
 
@@ -91,8 +91,8 @@ impl ViewElement for MapChildElement {
 
 // Necessary for the `ViewSequence`
 // This could theoretically cast more specific elements into a (type-erased) `AnyMapChildElement` if necessary.
-impl SuperElement<MapChildElement> for MapChildElement {
-    fn upcast(child: MapChildElement) -> Self {
+impl SuperElement<MapChildElement, MapCtx> for MapChildElement {
+    fn upcast(_: &mut MapCtx, child: MapChildElement) -> Self {
         child
     }
 
@@ -244,18 +244,17 @@ where
         })
     }
 
-    fn rebuild<'el>(
+    fn rebuild(
         &self,
         prev: &Self,
         view_state: &mut Self::ViewState,
         ctx: &mut ViewCtx,
-        element: Mut<'el, Self::Element>,
-    ) -> Mut<'el, Self::Element> {
+        element: Mut<Self::Element>,
+    ) {
         log::debug!("Rebuild map");
         ctx.with_id(MAP_VIEW_ID, |ctx| {
-            let element =
-                self.map_view
-                    .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
+            self.map_view
+                .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
             if prev.zoom != self.zoom || prev.center != self.center {
                 apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
             }
@@ -267,7 +266,6 @@ where
                 &mut view_state.map_ctx,
                 &mut splice,
             );
-            element
         })
     }
 
