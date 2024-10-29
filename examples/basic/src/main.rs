@@ -1,6 +1,7 @@
 use xilem_leaflet::{map, tile_layer};
 use xilem_web::{
-    document_body, elements::html, input_event_target_value, interfaces::Element, style, App,
+    document_body, elements::html, input_event_target_value, interfaces::Element, modifiers::style,
+    App,
 };
 
 struct AppState {

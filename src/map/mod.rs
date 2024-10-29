@@ -10,7 +10,8 @@ use xilem_web::{
     },
     elements::html,
     interfaces::Element,
-    style, DynMessage, MessageThunk, Style, ViewCtx,
+    modifiers::{style, Style, StyleIter},
+    DynMessage, MessageThunk, ViewCtx,
 };
 
 mod events;
@@ -63,18 +64,21 @@ impl<V, State> MapChildren<State> for V where
 {
 }
 
-type MapDomView<State, Action> = Style<html::Div<(), State, Action>, State, Action>;
+type MapDomView<Styles, State, Action> = Style<html::Div<(), State, Action>, Styles, State, Action>;
 
-pub fn map<State, Action, Children>(children: Children) -> Map<State, Action, Children>
+pub fn map<State, Action, Children>(
+    children: Children,
+) -> Map<[impl StyleIter; 2], State, Action, Children>
 where
     State: 'static,
     Action: 'static,
     Children: MapChildren<State>,
 {
+    // A Frozen view would be even better (perf), but that basically requires TAITs
+    // alternatively the view could be created in `View::build` as well (and stored in `View::State`)
+    let map_view = html::div(()).style([style("width", "100%"), style("height", "100%")]);
     Map {
-        // A Frozen view would be even better (perf), but that basically requires TAITs
-        // alternatively the view could be created in `View::build` as well (and stored in `View::State`)
-        map_view: html::div(()).style([style("width", "100%"), style("height", "100%")]),
+        map_view,
         zoom: None,
         center: None,
         children,
@@ -140,21 +144,24 @@ impl<V, State, Action> MapChild<State, Action> for V where
 {
 }
 
-pub struct Map<State, Action, Children> {
-    map_view: MapDomView<State, Action>,
+pub struct Map<Styles, State, Action, Children> {
+    map_view: MapDomView<Styles, State, Action>,
     children: Children,
     zoom: Option<f64>,
     center: Option<(f64, f64)>,
     phantom: PhantomData<fn() -> (State, Action)>,
 }
 
-impl<State, Action, Children> Map<State, Action, Children> {
+impl<Styles, State, Action, Children> Map<Styles, State, Action, Children> {
     pub fn zoom(mut self, value: f64) -> Self {
         self.zoom = Some(value);
         self
     }
 
-    pub fn on_zoom_end<F>(self, callback: F) -> Map<State, Action, (Children, OnZoomEnd<State, F>)>
+    pub fn on_zoom_end<F>(
+        self,
+        callback: F,
+    ) -> Map<Styles, State, Action, (Children, OnZoomEnd<State, F>)>
     where
         F: Fn(&mut State, f64) + 'static,
     {
@@ -181,7 +188,7 @@ impl<State, Action, Children> Map<State, Action, Children> {
     }
 }
 
-impl<State, Action, Children> ViewMarker for Map<State, Action, Children> {}
+impl<Styles, State, Action, Children> ViewMarker for Map<Styles, State, Action, Children> {}
 
 pub struct MapViewState<DS, CS> {
     map_dom_state: DS,
@@ -198,17 +205,19 @@ pub enum MapMessage {
 /// Distinctive ID for better debugging
 const MAP_VIEW_ID: ViewId = ViewId::new(1236068);
 
-impl<State, Action, Children> View<State, Action, ViewCtx, DynMessage>
-    for Map<State, Action, Children>
+impl<Styles, State, Action, Children> View<State, Action, ViewCtx, DynMessage>
+    for Map<Styles, State, Action, Children>
 where
     State: 'static,
     Action: 'static,
+    Styles: StyleIter,
     Children: MapChildren<State>,
 {
-    type Element = <MapDomView<State, Action> as View<State, Action, ViewCtx, DynMessage>>::Element;
+    type Element =
+        <MapDomView<Styles, State, Action> as View<State, Action, ViewCtx, DynMessage>>::Element;
 
     type ViewState = MapViewState<
-        <MapDomView<State, Action> as View<State, Action, ViewCtx, DynMessage>>::ViewState,
+        <MapDomView<Styles, State, Action> as View<State, Action, ViewCtx, DynMessage>>::ViewState,
         Children::SeqState,
     >;
 
