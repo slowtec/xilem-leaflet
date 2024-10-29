@@ -5,12 +5,12 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::wasm_bindgen::UnwrapThrowExt;
 use xilem_web::{
     core::{
-        AppendVec, ElementSplice, MessageResult, Mut, SuperElement, View, ViewElement, ViewId,
-        ViewMarker, ViewPathTracker, ViewSequence,
+        frozen, AppendVec, ElementSplice, MessageResult, Mut, SuperElement, View, ViewElement,
+        ViewId, ViewMarker, ViewPathTracker, ViewSequence,
     },
     elements::html,
-    interfaces::Element,
-    modifiers::{style, Style, StyleIter},
+    interfaces::{Element, HtmlElement},
+    modifiers::style,
     DynMessage, MessageThunk, ViewCtx,
 };
 
@@ -64,19 +64,16 @@ impl<V, State> MapChildren<State> for V where
 {
 }
 
-type MapDomView<Styles, State, Action> = Style<html::Div<(), State, Action>, Styles, State, Action>;
-
 pub fn map<State, Action, Children>(
     children: Children,
-) -> Map<[impl StyleIter; 2], State, Action, Children>
+) -> Map<impl HtmlElement<State, Action>, State, Action, Children>
 where
     State: 'static,
     Action: 'static,
     Children: MapChildren<State>,
 {
-    // A Frozen view would be even better (perf), but that basically requires TAITs
-    // alternatively the view could be created in `View::build` as well (and stored in `View::State`)
-    let map_view = html::div(()).style([style("width", "100%"), style("height", "100%")]);
+    let map_view =
+        frozen(|| html::div(()).style([style("width", "100%"), style("height", "100%")]));
     Map {
         map_view,
         zoom: None,
@@ -144,15 +141,15 @@ impl<V, State, Action> MapChild<State, Action> for V where
 {
 }
 
-pub struct Map<Styles, State, Action, Children> {
-    map_view: MapDomView<Styles, State, Action>,
+pub struct Map<MapDomView, State, Action, Children> {
+    map_view: MapDomView,
     children: Children,
     zoom: Option<f64>,
     center: Option<(f64, f64)>,
     phantom: PhantomData<fn() -> (State, Action)>,
 }
 
-impl<Styles, State, Action, Children> Map<Styles, State, Action, Children> {
+impl<MapDomView, State, Action, Children> Map<MapDomView, State, Action, Children> {
     pub fn zoom(mut self, value: f64) -> Self {
         self.zoom = Some(value);
         self
@@ -161,7 +158,7 @@ impl<Styles, State, Action, Children> Map<Styles, State, Action, Children> {
     pub fn on_zoom_end<F>(
         self,
         callback: F,
-    ) -> Map<Styles, State, Action, (Children, OnZoomEnd<State, F>)>
+    ) -> Map<MapDomView, State, Action, (Children, OnZoomEnd<State, F>)>
     where
         F: Fn(&mut State, f64) + 'static,
     {
@@ -205,28 +202,25 @@ pub enum MapMessage {
 /// Distinctive ID for better debugging
 const MAP_VIEW_ID: ViewId = ViewId::new(1236068);
 
-impl<Styles, State, Action, Children> View<State, Action, ViewCtx, DynMessage>
-    for Map<Styles, State, Action, Children>
+impl<MapDomView, State, Action, Children> View<State, Action, ViewCtx, DynMessage>
+    for Map<MapDomView, State, Action, Children>
 where
     State: 'static,
     Action: 'static,
-    Styles: StyleIter,
+    MapDomView: HtmlElement<State, Action>,
     Children: MapChildren<State>,
 {
-    type Element =
-        <MapDomView<Styles, State, Action> as View<State, Action, ViewCtx, DynMessage>>::Element;
+    type Element = MapDomView::Element;
 
-    type ViewState = MapViewState<
-        <MapDomView<Styles, State, Action> as View<State, Action, ViewCtx, DynMessage>>::ViewState,
-        Children::SeqState,
-    >;
+    type ViewState = MapViewState<MapDomView::ViewState, Children::SeqState>;
 
     fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
         ctx.with_id(MAP_VIEW_ID, |ctx| {
             let (map_dom_element, map_dom_state) = self.map_view.build(ctx);
 
             let map_options = leaflet::MapOptions::default();
-            let leaflet_map = leaflet::Map::new_with_element(&map_dom_element.node, &map_options);
+            let leaflet_map =
+                leaflet::Map::new_with_element(map_dom_element.node.as_ref(), &map_options);
 
             let mut elements = AppendVec::default();
             let mut map_ctx = MapCtx::new(leaflet_map.clone(), ctx.message_thunk());
