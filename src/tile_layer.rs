@@ -4,7 +4,7 @@ use xilem_web::core::{MessageResult, Mut, View, ViewId, ViewMarker};
 
 use crate::{MapAction, MapChildElement, MapCtx, MapMessage};
 
-pub fn tile_layer<State>(url_template: &'static str) -> TileLayer<State> {
+pub const fn tile_layer<State>(url_template: &'static str) -> TileLayer<State> {
     TileLayer {
         url_template,
         phantom: PhantomData,

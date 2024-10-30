@@ -5,7 +5,7 @@ use xilem_web::core::{MessageResult, Mut, View, ViewId, ViewMarker};
 
 use crate::{MapAction, MapChildElement, MapCtx, MapMessage};
 
-pub(crate) fn on_zoom_end<State, F>(callback: F) -> OnZoomEnd<State, F>
+pub(crate) const fn on_zoom_end<State, F>(callback: F) -> OnZoomEnd<State, F>
 where
     F: Fn(&mut State, f64) + 'static,
 {

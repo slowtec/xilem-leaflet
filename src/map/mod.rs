@@ -179,6 +179,30 @@ impl<MapDomView, State, Action, Children> Map<MapDomView, State, Action, Childre
         }
     }
 
+    pub fn on_mouse_click<F>(
+        self,
+        callback: F,
+    ) -> Map<MapDomView, State, Action, (Children, OnMouseClick<State, F>)>
+    where
+        F: Fn(&mut State, leaflet::MouseEvent) + 'static,
+    {
+        let Self {
+            map_view,
+            children,
+            zoom,
+            center,
+            phantom,
+        } = self;
+        let children = (children, on_mouse_click(callback));
+        Map {
+            map_view,
+            children,
+            zoom,
+            center,
+            phantom,
+        }
+    }
+
     pub fn center(mut self, lat: f64, lng: f64) -> Self {
         self.center = Some((lat, lng));
         self
@@ -196,7 +220,8 @@ pub struct MapViewState<DS, CS> {
 #[derive(Debug, Clone)]
 pub enum MapMessage {
     InitMap,
-    ZoomEnd(f64), // TODO: remove this
+    ZoomEnd(f64),                    // TODO: remove this
+    MouseClick(leaflet::MouseEvent), // TODO: remove this
 }
 
 /// Distinctive ID for better debugging

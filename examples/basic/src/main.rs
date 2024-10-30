@@ -1,4 +1,4 @@
-use xilem_leaflet::{map, tile_layer};
+use xilem_leaflet::{map, marker, tile_layer};
 use xilem_web::{
     document_body, elements::html, input_event_target_value, interfaces::Element, modifiers::style,
     App,
@@ -8,6 +8,7 @@ struct AppState {
     zoom_input: Option<String>,
     zoom: f64,
     center: (f64, f64),
+    markers: Vec<(f64, f64)>,
 }
 
 impl Default for AppState {
@@ -16,6 +17,7 @@ impl Default for AppState {
             zoom_input: None,
             zoom: 12.0,
             center: (48.64, 9.46),
+            markers: Vec::new(),
         }
     }
 }
@@ -23,6 +25,11 @@ impl Default for AppState {
 const TILE_LAYER_URL: &str = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 fn app_logic(state: &mut AppState) -> impl Element<AppState> {
+    let markers: Vec<_> = state
+        .markers
+        .iter()
+        .map(|(lat, lng)| marker(*lat, *lng))
+        .collect();
     html::div((
         html::label((
             "Zoom:",
@@ -47,12 +54,16 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
                     };
                 }),
         )),
-        map(tile_layer(TILE_LAYER_URL))
+        map((tile_layer(TILE_LAYER_URL), markers))
             .center(state.center.0, state.center.1)
             .zoom(state.zoom)
             .on_zoom_end(|state: &mut AppState, zoom| {
                 log::debug!("Zoom has changed to {zoom}");
                 state.zoom = zoom;
+            })
+            .on_mouse_click(|state: &mut AppState, ev| {
+                let lat_lng = ev.lat_lng();
+                state.markers.push((lat_lng.lat(), lat_lng.lng()));
             }),
     ))
     .style(style("width", "100%"))
