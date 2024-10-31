@@ -1,9 +1,12 @@
 use std::{marker::PhantomData, rc::Rc};
 
 use wasm_bindgen_futures::spawn_local;
-use xilem_web::core::{MessageResult, Mut, View, ViewId, ViewMarker};
+use xilem_web::{
+    core::{MessageResult, Mut, View, ViewId, ViewMarker},
+    DynMessage,
+};
 
-use crate::{MapAction, MapChildElement, MapCtx, MapMessage};
+use crate::{MapChildElement, MapCtx};
 
 pub(crate) const fn on_mouse_click<State, F>(callback: F) -> OnMouseClick<State, F>
 where
@@ -24,7 +27,10 @@ impl<State, F> ViewMarker for OnMouseClick<State, F> {}
 
 pub struct OnMouseClickViewState;
 
-impl<State, F> View<State, MapAction, MapCtx, MapMessage> for OnMouseClick<State, F>
+#[derive(Debug)]
+struct ClickMessage(leaflet::MouseEvent);
+
+impl<State, Action, F> View<State, Action, MapCtx, DynMessage> for OnMouseClick<State, F>
 where
     State: 'static,
     F: Fn(&mut State, leaflet::MouseEvent) + 'static,
@@ -38,7 +44,7 @@ where
         ctx.map.on_mouse_click(Box::new(move |ev| {
             let thunk = Rc::clone(&thunk);
             spawn_local(async move {
-                thunk.push_message(MapMessage::MouseClick(ev));
+                thunk.push_message(ClickMessage(ev));
             });
         }));
         let view_state = OnMouseClickViewState {};
@@ -57,12 +63,11 @@ where
         &self,
         _: &mut Self::ViewState,
         _: &[ViewId],
-        message: MapMessage,
+        message: DynMessage,
         state: &mut State,
-    ) -> MessageResult<MapAction, MapMessage> {
-        if let MapMessage::MouseClick(ev) = message {
-            (self.callback)(state, ev);
-        }
+    ) -> MessageResult<Action, DynMessage> {
+        let ClickMessage(ev) = *message.downcast().unwrap();
+        (self.callback)(state, ev);
         MessageResult::Nop
     }
 }

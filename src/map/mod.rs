@@ -1,5 +1,4 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
+use std::{any::TypeId, marker::PhantomData, rc::Rc};
 
 use wasm_bindgen_futures::spawn_local;
 use web_sys::wasm_bindgen::UnwrapThrowExt;
@@ -50,17 +49,13 @@ impl ViewPathTracker for MapCtx {
     }
 }
 
-// I think Action could probably be used to signify `Map` some changes, it could match
-
-pub enum MapAction {}
-
-pub trait MapChildren<State>:
-    ViewSequence<State, MapAction, MapCtx, MapChildElement, MapMessage>
+pub trait MapChildren<State, Action>:
+    ViewSequence<State, Action, MapCtx, MapChildElement, DynMessage>
 {
 }
 
-impl<V, State> MapChildren<State> for V where
-    V: ViewSequence<State, MapAction, MapCtx, MapChildElement, MapMessage>
+impl<V, State, Action> MapChildren<State, Action> for V where
+    V: ViewSequence<State, Action, MapCtx, MapChildElement, DynMessage>
 {
 }
 
@@ -70,7 +65,7 @@ pub fn map<State, Action, Children>(
 where
     State: 'static,
     Action: 'static,
-    Children: MapChildren<State>,
+    Children: MapChildren<State, Action>,
 {
     let map_view =
         frozen(|| html::div(()).style([style("width", "100%"), style("height", "100%")]));
@@ -132,12 +127,12 @@ impl ElementSplice<MapChildElement> for MapChildrenSplice {
 /// This is a marker trait that is used to pass only map-specific children
 /// to the [`map`] function.
 pub trait MapChild<State, Action>:
-    View<State, Action, ViewCtx, MapMessage, Element = MapChildElement>
+    View<State, Action, ViewCtx, DynMessage, Element = MapChildElement>
 {
 }
 
 impl<V, State, Action> MapChild<State, Action> for V where
-    V: View<State, Action, ViewCtx, MapMessage, Element = MapChildElement>
+    V: View<State, Action, ViewCtx, DynMessage, Element = MapChildElement>
 {
 }
 
@@ -220,8 +215,6 @@ pub struct MapViewState<DS, CS> {
 #[derive(Debug, Clone)]
 pub enum MapMessage {
     InitMap,
-    ZoomEnd(f64),                    // TODO: remove this
-    MouseClick(leaflet::MouseEvent), // TODO: remove this
 }
 
 /// Distinctive ID for better debugging
@@ -233,7 +226,7 @@ where
     State: 'static,
     Action: 'static,
     MapDomView: HtmlElement<State, Action>,
-    Children: MapChildren<State>,
+    Children: MapChildren<State, Action>,
 {
     type Element = MapDomView::Element;
 
@@ -313,17 +306,23 @@ where
         log::debug!("Handle map message {message:?} for {path:?}");
         let (first, _) = path.split_first().unwrap_throw();
         assert_eq!(*first, MAP_VIEW_ID);
-        let message = *message.downcast().unwrap();
-        match message {
-            MapMessage::InitMap => {
-                apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
-                MessageResult::RequestRebuild
-            }
-            _ => {
-                // TODO: handle message
-                MessageResult::Nop
-            }
+        if message.as_any().type_id() == TypeId::of::<MapMessage>() {
+            let message = *message.downcast().unwrap();
+            return match message {
+                MapMessage::InitMap => {
+                    apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
+                    MessageResult::RequestRebuild
+                }
+            };
         }
+        // TODO:
+        // self.children.seq_message(
+        //   &mut view_state.children_state,
+        //   path,
+        //   message,
+        //   state
+        // )
+        MessageResult::Nop
     }
 }
 

@@ -1,8 +1,11 @@
 use std::marker::PhantomData;
 
-use xilem_web::core::{MessageResult, Mut, View, ViewId, ViewMarker};
+use xilem_web::{
+    core::{MessageResult, Mut, View, ViewId, ViewMarker},
+    DynMessage,
+};
 
-use crate::{MapAction, MapChildElement, MapCtx, MapMessage};
+use crate::{MapChildElement, MapCtx};
 
 pub const fn marker<State>(lat: f64, lng: f64) -> Marker<State> {
     Marker {
@@ -24,7 +27,10 @@ pub struct MarkerViewState {
     marker: leaflet::Marker,
 }
 
-impl<State: 'static> View<State, MapAction, MapCtx, MapMessage> for Marker<State> {
+impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker<State>
+where
+    State: 'static,
+{
     type Element = MapChildElement;
 
     type ViewState = MarkerViewState;
@@ -46,9 +52,9 @@ impl<State: 'static> View<State, MapAction, MapCtx, MapMessage> for Marker<State
         &self,
         _: &mut Self::ViewState,
         _: &[ViewId],
-        _: MapMessage,
+        _: DynMessage,
         _: &mut State,
-    ) -> MessageResult<MapAction, MapMessage> {
+    ) -> MessageResult<Action, DynMessage> {
         MessageResult::Nop
     }
 }

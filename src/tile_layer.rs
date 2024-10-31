@@ -1,8 +1,11 @@
 use std::marker::PhantomData;
 
-use xilem_web::core::{MessageResult, Mut, View, ViewId, ViewMarker};
+use xilem_web::{
+    core::{MessageResult, Mut, View, ViewId, ViewMarker},
+    DynMessage,
+};
 
-use crate::{MapAction, MapChildElement, MapCtx, MapMessage};
+use crate::{MapChildElement, MapCtx};
 
 pub const fn tile_layer<State>(url_template: &'static str) -> TileLayer<State> {
     TileLayer {
@@ -23,7 +26,10 @@ pub struct TileLayerViewState {
     added_to_map: bool,
 }
 
-impl<State: 'static> View<State, MapAction, MapCtx, MapMessage> for TileLayer<State> {
+impl<State, Action> View<State, Action, MapCtx, DynMessage> for TileLayer<State>
+where
+    State: 'static,
+{
     type Element = MapChildElement;
 
     type ViewState = TileLayerViewState;
@@ -62,9 +68,9 @@ impl<State: 'static> View<State, MapAction, MapCtx, MapMessage> for TileLayer<St
         &self,
         _: &mut Self::ViewState,
         _: &[ViewId],
-        _: MapMessage,
+        _: DynMessage,
         _: &mut State,
-    ) -> MessageResult<MapAction, MapMessage> {
+    ) -> MessageResult<Action, DynMessage> {
         MessageResult::Nop
     }
 }
