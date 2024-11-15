@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use xilem_web::{
     core::{MessageResult, Mut, View, ViewId, ViewMarker},
     DynMessage,
@@ -7,61 +5,47 @@ use xilem_web::{
 
 use crate::{MapChildElement, MapCtx};
 
-pub const fn tile_layer<State>(url_template: &'static str) -> TileLayer<State> {
-    TileLayer {
-        url_template,
-        phantom: PhantomData,
-    }
+pub const fn tile_layer(url_template: &'static str) -> TileLayer {
+    TileLayer { url_template }
 }
 
-pub struct TileLayer<State> {
+pub struct TileLayer {
     url_template: &'static str,
-    phantom: PhantomData<fn() -> State>,
 }
 
-impl<State> ViewMarker for TileLayer<State> {}
+impl ViewMarker for TileLayer {}
 
-pub struct TileLayerViewState {
-    tile_layer: leaflet::TileLayer,
-    added_to_map: bool,
-}
-
-impl<State, Action> View<State, Action, MapCtx, DynMessage> for TileLayer<State>
+impl<State, Action> View<State, Action, MapCtx, DynMessage> for TileLayer
 where
     State: 'static,
 {
     type Element = MapChildElement;
 
-    type ViewState = TileLayerViewState;
+    type ViewState = ();
 
-    fn build(&self, _: &mut MapCtx) -> (Self::Element, Self::ViewState) {
+    fn build(&self, ctx: &mut MapCtx) -> (Self::Element, Self::ViewState) {
         let tile_layer = leaflet::TileLayer::new(self.url_template);
-        let added_to_map = false;
-        let view_state = TileLayerViewState {
-            tile_layer,
-            added_to_map,
-        };
-        (MapChildElement, view_state)
+        ctx.map().add_layer(&tile_layer);
+        (MapChildElement::TileLayer(tile_layer), ())
     }
 
     fn rebuild(
         &self,
         prev: &Self,
-        view_state: &mut Self::ViewState,
+        _: &mut Self::ViewState,
         map_ctx: &mut MapCtx,
-        _: Mut<Self::Element>,
+        element: Mut<Self::Element>,
     ) {
         if prev.url_template != self.url_template {
-            view_state.tile_layer = leaflet::TileLayer::new(self.url_template);
-        }
-        if !view_state.added_to_map {
-            view_state.tile_layer.add_to(map_ctx.map());
-            view_state.added_to_map = true;
+            let tile_layer = element.as_tile_layer_mut();
+            tile_layer.remove();
+            *tile_layer = leaflet::TileLayer::new(self.url_template);
+            tile_layer.add_to(map_ctx.map());
         }
     }
 
-    fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, _: Mut<Self::Element>) {
-        // TODO
+    fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+        e.as_tile_layer_mut().remove();
     }
 
     fn message(
