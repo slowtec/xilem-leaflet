@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use xilem_web::{
     core::{MessageResult, Mut, View, ViewId, ViewMarker},
     DynMessage,
@@ -7,54 +5,47 @@ use xilem_web::{
 
 use crate::{MapChildElement, MapCtx};
 
-pub const fn marker<State>(lat: f64, lng: f64) -> Marker<State> {
-    Marker {
-        lat,
-        lng,
-        phantom: PhantomData,
-    }
+pub const fn marker(lat: f64, lng: f64) -> Marker {
+    Marker { lat, lng }
 }
 
-pub struct Marker<State> {
+#[derive(PartialEq)]
+pub struct Marker {
     lat: f64,
     lng: f64,
-    phantom: PhantomData<fn() -> State>,
 }
 
-impl<State> ViewMarker for Marker<State> {}
+impl ViewMarker for Marker {}
 
-pub struct MarkerViewState {
-    marker: leaflet::Marker,
-}
-
-impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker<State>
-where
-    State: 'static,
-{
+impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker {
     type Element = MapChildElement;
 
-    type ViewState = MarkerViewState;
+    type ViewState = ();
 
     fn build(&self, ctx: &mut MapCtx) -> (Self::Element, Self::ViewState) {
         let marker = leaflet::Marker::new(&leaflet::LatLng::new(self.lat, self.lng));
         marker.add_to(ctx.map());
-        let view_state = MarkerViewState { marker };
-        (MapChildElement, view_state)
+        (MapChildElement::Marker(marker), ())
     }
 
-    fn rebuild(&self, _: &Self, _: &mut Self::ViewState, _: &mut MapCtx, _: Mut<Self::Element>) {}
+    fn rebuild(&self, prev: &Self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+        if self != prev {
+            e.as_marker_mut()
+                .set_lat_lng(&leaflet::LatLng::new(self.lat, self.lng));
+        }
+    }
 
-    fn teardown(&self, view_state: &mut Self::ViewState, ctx: &mut MapCtx, _: Mut<Self::Element>) {
-        view_state.marker.remove_from(ctx.map());
+    fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+        e.as_marker_mut().remove();
     }
 
     fn message(
         &self,
         _: &mut Self::ViewState,
         _: &[ViewId],
-        _: DynMessage,
+        message: DynMessage,
         _: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        MessageResult::Nop
+        MessageResult::Stale(message)
     }
 }

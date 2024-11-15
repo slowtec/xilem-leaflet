@@ -1,7 +1,6 @@
-use std::{any::TypeId, marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
 
 use wasm_bindgen_futures::spawn_local;
-use web_sys::wasm_bindgen::UnwrapThrowExt;
 use xilem_web::{
     core::{
         frozen, AppendVec, ElementSplice, MessageResult, Mut, SuperElement, View, ViewElement,
@@ -10,25 +9,20 @@ use xilem_web::{
     elements::html,
     interfaces::{Element, HtmlElement},
     modifiers::style,
-    DynMessage, MessageThunk, ViewCtx,
+    DynMessage, ViewCtx,
 };
 
 mod events;
 pub use self::events::*;
 
 pub struct MapCtx {
-    id_path: Vec<ViewId>,
+    dom_ctx: ViewCtx,
     map: leaflet::Map,
-    thunk: Rc<MessageThunk>,
 }
 
 impl MapCtx {
-    fn new(map: leaflet::Map, thunk: MessageThunk) -> Self {
-        Self {
-            id_path: Vec::new(),
-            map,
-            thunk: Rc::new(thunk),
-        }
+    fn new(dom_ctx: ViewCtx, map: leaflet::Map) -> Self {
+        Self { dom_ctx, map }
     }
     pub const fn map(&self) -> &leaflet::Map {
         &self.map
@@ -37,15 +31,15 @@ impl MapCtx {
 
 impl ViewPathTracker for MapCtx {
     fn push_id(&mut self, id: ViewId) {
-        self.id_path.push(id);
+        self.dom_ctx.push_id(id);
     }
 
     fn pop_id(&mut self) {
-        self.id_path.pop();
+        self.dom_ctx.pop_id();
     }
 
     fn view_path(&mut self) -> &[ViewId] {
-        &self.id_path
+        self.dom_ctx.view_path()
     }
 }
 
@@ -78,8 +72,32 @@ where
     }
 }
 
-// TODO make this actually useful with element state
-pub struct MapChildElement;
+pub enum MapChildElement {
+    Marker(leaflet::Marker),
+    TileLayer(leaflet::TileLayer),
+    Event,
+}
+
+impl MapChildElement {
+    /// # Panics
+    ///
+    /// If it's not a marker.
+    pub fn as_marker_mut(&mut self) -> &mut leaflet::Marker {
+        match self {
+            MapChildElement::Marker(marker) => marker,
+            _ => panic!("Element is not a marker"),
+        }
+    }
+    /// # Panics
+    ///
+    /// If it's not a tile layer.
+    pub fn as_tile_layer_mut(&mut self) -> &mut leaflet::TileLayer {
+        match self {
+            MapChildElement::TileLayer(layer) => layer,
+            _ => panic!("Element is not a marker"),
+        }
+    }
+}
 
 impl ViewElement for MapChildElement {
     type Mut<'a> = &'a mut MapChildElement;
@@ -101,26 +119,47 @@ impl SuperElement<MapChildElement, MapCtx> for MapChildElement {
     }
 }
 
-struct MapChildrenSplice;
+struct MapChildrenSplice<'a> {
+    idx: usize,
+    children: &'a mut Vec<MapChildElement>,
+}
+
+impl<'a> MapChildrenSplice<'a> {
+    pub(crate) fn new(children: &'a mut Vec<MapChildElement>) -> Self {
+        Self { idx: 0, children }
+    }
+}
 
 /// Hmm I wonder if we could provide some generic types for this, to make this simpler,
 /// we could e.g. export `VecSplice` from xilem_web (again),
 /// and implement that trait for `VecSplice`, when it's just necessary to maintain a Vec of elements...
-impl ElementSplice<MapChildElement> for MapChildrenSplice {
+/// The current naive implementation is rather inefficient O(n^2) (resulting in a lot of shifting of elements and allocations)
+impl ElementSplice<MapChildElement> for MapChildrenSplice<'_> {
     fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<MapChildElement>) -> R) -> R {
-        f(&mut AppendVec::default())
+        let mut scratch = AppendVec::default();
+        let ret_val = f(&mut scratch);
+        let new_elements = scratch.into_inner();
+        self.idx += new_elements.len();
+        self.children.extend(new_elements);
+        ret_val
     }
 
-    fn insert(&mut self, _element: MapChildElement) {}
+    fn insert(&mut self, element: MapChildElement) {
+        self.children.insert(self.idx, element);
+        self.idx += 1;
+    }
 
     fn mutate<R>(&mut self, f: impl FnOnce(Mut<'_, MapChildElement>) -> R) -> R {
-        f(&mut MapChildElement)
+        self.idx += 1;
+        f(&mut self.children[self.idx - 1])
     }
 
-    fn skip(&mut self, _n: usize) {}
+    fn skip(&mut self, n: usize) {
+        self.idx += n;
+    }
 
     fn delete<R>(&mut self, f: impl FnOnce(Mut<'_, MapChildElement>) -> R) -> R {
-        f(&mut MapChildElement)
+        f(&mut self.children.remove(self.idx))
     }
 }
 
@@ -153,7 +192,7 @@ impl<MapDomView, State, Action, Children> Map<MapDomView, State, Action, Childre
     pub fn on_zoom_end<F>(
         self,
         callback: F,
-    ) -> Map<MapDomView, State, Action, (Children, OnZoomEnd<State, F>)>
+    ) -> Map<MapDomView, State, Action, (Children, OnZoomEnd<F>)>
     where
         F: Fn(&mut State, f64) + 'static,
     {
@@ -177,7 +216,7 @@ impl<MapDomView, State, Action, Children> Map<MapDomView, State, Action, Childre
     pub fn on_mouse_click<F>(
         self,
         callback: F,
-    ) -> Map<MapDomView, State, Action, (Children, OnMouseClick<State, F>)>
+    ) -> Map<MapDomView, State, Action, (Children, OnMouseClick<F>)>
     where
         F: Fn(&mut State, leaflet::MouseEvent) + 'static,
     {
@@ -209,16 +248,14 @@ impl<Styles, State, Action, Children> ViewMarker for Map<Styles, State, Action, 
 pub struct MapViewState<DS, CS> {
     map_dom_state: DS,
     children_state: CS,
-    map_ctx: MapCtx,
+    children: Vec<MapChildElement>,
+    leaflet_map: leaflet::Map,
 }
 
 #[derive(Debug, Clone)]
 pub enum MapMessage {
     InitMap,
 }
-
-/// Distinctive ID for better debugging
-const MAP_VIEW_ID: ViewId = ViewId::new(1236068);
 
 impl<MapDomView, State, Action, Children> View<State, Action, ViewCtx, DynMessage>
     for Map<MapDomView, State, Action, Children>
@@ -233,36 +270,34 @@ where
     type ViewState = MapViewState<MapDomView::ViewState, Children::SeqState>;
 
     fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
-        ctx.with_id(MAP_VIEW_ID, |ctx| {
-            let (map_dom_element, map_dom_state) = self.map_view.build(ctx);
+        let (map_dom_element, map_dom_state) = self.map_view.build(ctx);
 
-            let map_options = leaflet::MapOptions::default();
-            let leaflet_map =
-                leaflet::Map::new_with_element(map_dom_element.node.as_ref(), &map_options);
+        let map_options = leaflet::MapOptions::default();
+        let leaflet_map =
+            leaflet::Map::new_with_element(map_dom_element.node.as_ref(), &map_options);
 
-            let mut elements = AppendVec::default();
-            let mut map_ctx = MapCtx::new(leaflet_map.clone(), ctx.message_thunk());
+        let mut elements = AppendVec::default();
+        let view_state = ctx.as_owned(|dom_ctx| {
+            let mut map_ctx = MapCtx::new(dom_ctx, leaflet_map.clone());
             let children_state = self.children.seq_build(&mut map_ctx, &mut elements);
-
             let view_state = MapViewState {
-                map_ctx,
+                leaflet_map: map_ctx.map,
                 map_dom_state,
+                children: elements.into_inner(),
                 children_state,
             };
+            (map_ctx.dom_ctx, view_state)
+        });
 
-            // Is the following an issue?
-            // Does it require on being in the DOM tree?
-            // Can the tile-layer be added before running `apply_zoom_and_center`?
-
-            // We have to postpone the map initiation
-            // because the DOM element has been created at this point in time
-            // but has not yet been mounted.
-            let thunk = ctx.message_thunk();
-            spawn_local(async move {
-                thunk.push_message(MapMessage::InitMap);
-            });
-            (map_dom_element, view_state)
-        })
+        // We have to postpone the map initiation
+        // because the DOM element has been created at this point in time
+        // but has not yet been mounted.
+        // Does it require on being in the DOM tree?
+        let map = view_state.leaflet_map.clone();
+        let zoom = self.zoom;
+        let center = self.center;
+        spawn_local(async move { apply_zoom_and_center(&map, zoom, center) });
+        (map_dom_element, view_state)
     }
 
     fn rebuild(
@@ -273,56 +308,46 @@ where
         element: Mut<Self::Element>,
     ) {
         log::debug!("Rebuild map");
-        ctx.with_id(MAP_VIEW_ID, |ctx| {
-            self.map_view
-                .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
-            if prev.zoom != self.zoom || prev.center != self.center {
-                apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
-            }
-            let mut splice = MapChildrenSplice;
-            log::debug!("seq_rebuild children");
+        self.map_view
+            .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
+        if prev.zoom != self.zoom || prev.center != self.center {
+            apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
+        }
+        log::debug!("seq_rebuild children");
+        ctx.as_owned(|dom_ctx| {
+            let mut map_ctx = MapCtx::new(dom_ctx, view_state.leaflet_map.clone());
             self.children.seq_rebuild(
                 &prev.children,
                 &mut view_state.children_state,
-                &mut view_state.map_ctx,
-                &mut splice,
+                &mut map_ctx,
+                &mut MapChildrenSplice::new(&mut view_state.children),
             );
-        })
+            (map_ctx.dom_ctx, ())
+        });
     }
 
-    fn teardown(&self, _: &mut Self::ViewState, ctx: &mut ViewCtx, _: Mut<Self::Element>) {
-        ctx.with_id(MAP_VIEW_ID, |_ctx| {
-            // TODO
+    fn teardown(&self, view_state: &mut Self::ViewState, ctx: &mut ViewCtx, _: Mut<Self::Element>) {
+        ctx.as_owned(|dom_ctx| {
+            let mut map_ctx = MapCtx::new(dom_ctx, view_state.leaflet_map.clone());
+            self.children.seq_teardown(
+                &mut view_state.children_state,
+                &mut map_ctx,
+                &mut MapChildrenSplice::new(&mut view_state.children),
+            );
+            (map_ctx.dom_ctx, ())
         });
     }
 
     fn message(
         &self,
         view_state: &mut Self::ViewState,
-        path: &[ViewId],
+        id_path: &[ViewId],
         message: DynMessage,
-        _: &mut State,
+        app_state: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        log::debug!("Handle map message {message:?} for {path:?}");
-        let (first, _) = path.split_first().unwrap_throw();
-        assert_eq!(*first, MAP_VIEW_ID);
-        if message.as_any().type_id() == TypeId::of::<MapMessage>() {
-            let message = *message.downcast().unwrap();
-            return match message {
-                MapMessage::InitMap => {
-                    apply_zoom_and_center(&view_state.map_ctx.map, self.zoom, self.center);
-                    MessageResult::RequestRebuild
-                }
-            };
-        }
-        // TODO:
-        // self.children.seq_message(
-        //   &mut view_state.children_state,
-        //   path,
-        //   message,
-        //   state
-        // )
-        MessageResult::Nop
+        log::debug!("Handle map message {message:?} for {id_path:?}");
+        self.children
+            .seq_message(&mut view_state.children_state, id_path, message, app_state)
     }
 }
 

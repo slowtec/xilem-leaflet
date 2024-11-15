@@ -17,7 +17,7 @@ impl Default for AppState {
             zoom_input: None,
             zoom: 12.0,
             center: (48.64, 9.46),
-            markers: Vec::new(),
+            markers: vec![(48.64, 9.46)],
         }
     }
 }
@@ -36,21 +36,14 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
             html::input(())
                 .attr("value", state.zoom)
                 .on_input(|state: &mut AppState, ev| {
-                    let Some(value) = input_event_target_value(&ev) else {
-                        return;
-                    };
-                    state.zoom_input = if !value.trim().is_empty() {
-                        Some(value)
-                    } else {
-                        None
-                    };
+                    state.zoom_input = input_event_target_value(&ev)
+                        .and_then(|value| (!value.trim().is_empty()).then_some(value));
                 })
                 .on_keyup(|state: &mut AppState, ev| {
                     if &*ev.key() == "Enter" {
-                        let Some(Ok(value)) = state.zoom_input.as_ref().map(|v| v.parse()) else {
-                            return;
+                        if let Some(Ok(value)) = state.zoom_input.as_ref().map(|v| v.parse()) {
+                            state.zoom = value;
                         };
-                        state.zoom = value;
                     };
                 }),
         )),
