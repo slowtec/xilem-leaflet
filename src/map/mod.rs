@@ -130,10 +130,10 @@ impl<'a> MapChildrenSplice<'a> {
     }
 }
 
-/// Hmm I wonder if we could provide some generic types for this, to make this simpler,
-/// we could e.g. export `VecSplice` from xilem_web (again),
-/// and implement that trait for `VecSplice`, when it's just necessary to maintain a Vec of elements...
-/// The current naive implementation is rather inefficient O(n^2) (resulting in a lot of shifting of elements and allocations)
+// Hmm I wonder if we could provide some generic types for this, to make this simpler,
+// we could e.g. export `VecSplice` from xilem_web (again),
+// and implement that trait for `VecSplice`, when it's just necessary to maintain a Vec of elements...
+// The current naive implementation is rather inefficient O(n^2) (resulting in a lot of shifting of elements and allocations)
 impl ElementSplice<MapChildElement> for MapChildrenSplice<'_> {
     fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<MapChildElement>) -> R) -> R {
         let mut scratch = AppendVec::default();
@@ -292,11 +292,13 @@ where
         // We have to postpone the map initiation
         // because the DOM element has been created at this point in time
         // but has not yet been mounted.
-        // Does it require on being in the DOM tree?
-        let map = view_state.leaflet_map.clone();
-        let zoom = self.zoom;
-        let center = self.center;
-        spawn_local(async move { apply_zoom_and_center(&map, zoom, center) });
+        {
+            let map = view_state.leaflet_map.clone();
+            let zoom = self.zoom;
+            let center = self.center;
+            spawn_local(async move { apply_zoom_and_center(&map, zoom, center) });
+        }
+
         (map_dom_element, view_state)
     }
 
@@ -307,13 +309,11 @@ where
         ctx: &mut ViewCtx,
         element: Mut<Self::Element>,
     ) {
-        log::debug!("Rebuild map");
         self.map_view
             .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
         if prev.zoom != self.zoom || prev.center != self.center {
             apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
         }
-        log::debug!("seq_rebuild children");
         ctx.as_owned(|dom_ctx| {
             let mut map_ctx = MapCtx::new(dom_ctx, view_state.leaflet_map.clone());
             self.children.seq_rebuild(
@@ -345,7 +345,6 @@ where
         message: DynMessage,
         app_state: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        log::debug!("Handle map message {message:?} for {id_path:?}");
         self.children
             .seq_message(&mut view_state.children_state, id_path, message, app_state)
     }
