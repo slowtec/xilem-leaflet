@@ -72,6 +72,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub enum MapChildElement {
     Marker(leaflet::Marker),
     TileLayer(leaflet::TileLayer),
@@ -139,8 +140,9 @@ impl ElementSplice<MapChildElement> for MapChildrenSplice<'_> {
         let mut scratch = AppendVec::default();
         let ret_val = f(&mut scratch);
         let new_elements = scratch.into_inner();
-        self.idx += new_elements.len();
-        self.children.extend(new_elements);
+        let len = new_elements.len();
+        self.children.splice(self.idx..self.idx, new_elements);
+        self.idx += len;
         ret_val
     }
 
