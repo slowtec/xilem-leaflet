@@ -50,9 +50,14 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
         map((tile_layer(TILE_LAYER_URL), markers))
             .center(state.center.0, state.center.1)
             .zoom(state.zoom)
-            .on_zoom_end(|state: &mut AppState, zoom| {
+            .on_zoom_end(|state: &mut AppState, map, _ev| {
+                let zoom = map.get_zoom();
                 log::debug!("Zoom has changed to {zoom}");
                 state.zoom = zoom;
+            })
+            .on_move_end(|_state: &mut AppState, map, _ev| {
+                let bounds = map.get_bounds();
+                log::debug!("Bbox has changed to {bounds:?}");
             })
             .on_mouse_click(|state: &mut AppState, ev| {
                 let lat_lng = ev.lat_lng();

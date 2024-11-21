@@ -194,7 +194,7 @@ impl<MapDomView, State, Action, Children> Map<MapDomView, State, Action, Childre
         callback: F,
     ) -> Map<MapDomView, State, Action, (Children, OnZoomEnd<F>)>
     where
-        F: Fn(&mut State, f64) + 'static,
+        F: Fn(&mut State, leaflet::Map, leaflet::Event) + 'static,
     {
         let Self {
             map_view,
@@ -204,6 +204,30 @@ impl<MapDomView, State, Action, Children> Map<MapDomView, State, Action, Childre
             phantom,
         } = self;
         let children = (children, on_zoom_end(callback));
+        Map {
+            map_view,
+            children,
+            zoom,
+            center,
+            phantom,
+        }
+    }
+
+    pub fn on_move_end<F>(
+        self,
+        callback: F,
+    ) -> Map<MapDomView, State, Action, (Children, OnMoveEnd<F>)>
+    where
+        F: Fn(&mut State, leaflet::Map, leaflet::Event) + 'static,
+    {
+        let Self {
+            map_view,
+            children,
+            zoom,
+            center,
+            phantom,
+        } = self;
+        let children = (children, on_move_end(callback));
         Map {
             map_view,
             children,
@@ -351,6 +375,7 @@ where
 }
 
 fn apply_zoom_and_center(map: &leaflet::Map, zoom: Option<f64>, center: Option<(f64, f64)>) {
+    log::debug!("apply zoom ({zoom:?} and center ({center:?})");
     match (zoom, center) {
         (Some(zoom), None) => {
             map.set_zoom(zoom);
