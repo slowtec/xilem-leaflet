@@ -29,6 +29,7 @@ impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker {
     }
 
     fn rebuild(&self, prev: &Self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+        debug_assert!(matches!(e, MapChildElement::Marker(_)));
         if self != prev {
             e.as_marker_mut()
                 .set_lat_lng(&leaflet::LatLng::new(self.lat, self.lng));
