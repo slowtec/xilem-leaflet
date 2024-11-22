@@ -9,6 +9,15 @@
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE-MIT)
 [![Apache 2.0 licensed](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE-APACHE)
 
+## Examples
+
+You can run the examples with [Trunk](https://trunkrs.dev/):
+
+```
+cd examples/basic/
+trunk serve
+```
+
 ## License
 
 Copyright (c) 2024 [slowtec GmbH](https://slowtec.de)

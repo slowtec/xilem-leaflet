@@ -1,11 +1,13 @@
 [workspace]
-members = [ ]
+members = [
+  "examples/basic"
+]
 resolver = "2"
 
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.82"
 authors = ["Markus Kohlhase <markus.kohlhase@slowtec.de>"]
 license = "MIT/Apache-2.0"
 description = "A Leaflet.js wrapper for Xilem web"
@@ -24,6 +26,14 @@ repository.workspace = true
 
 [dependencies]
 leaflet = "0.4.1"
+log = "0.4.22"
+wasm-bindgen-futures = "0.4.45"
+web-sys = "0.3.72"
+xilem_web = "0.1.0"
+
+[patch.crates-io.xilem_web]
+git = "https://github.com/linebender/xilem"
+rev = "30cb5fb6a694908a74ed8969247807ce821d624b"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

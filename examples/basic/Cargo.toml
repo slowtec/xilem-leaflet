@@ -1,0 +1,13 @@
+[package]
+name = "basic-example"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+console_log = { version = "1.0.0", features = ["color"] }
+log = "0.4.22"
+xilem-leaflet = { path = "../.." }
+xilem_web = "0.1.0"
