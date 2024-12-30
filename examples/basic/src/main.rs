@@ -1,4 +1,4 @@
-use xilem_leaflet::{map, marker, tile_layer};
+use xilem_leaflet::{map, marker_with_options, tile_layer, MarkerOptions};
 use xilem_web::{
     document_body, elements::html, input_event_target_value, interfaces::Element, modifiers::style,
     App,
@@ -28,7 +28,14 @@ fn app_logic(state: &mut AppState) -> impl Element<AppState> {
     let markers: Vec<_> = state
         .markers
         .iter()
-        .map(|(lat, lng)| marker(*lat, *lng))
+        .enumerate()
+        .map(|(i, (lat, lng))| {
+            marker_with_options(
+                *lat,
+                *lng,
+                MarkerOptions::new().with_title(format!("Marker {i}")),
+            )
+        })
         .collect();
     html::div((
         html::label((
