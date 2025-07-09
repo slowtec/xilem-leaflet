@@ -25,7 +25,7 @@ struct ClickMessage(leaflet::MouseEvent);
 /// Distinctive ID for better debugging
 const ON_MOUSE_CLICK_ID: ViewId = ViewId::new(23668);
 
-impl<State, Action, F> View<State, Action, MapCtx, DynMessage> for OnMouseClick<F>
+impl<State, Action, F> View<State, Action, MapCtx> for OnMouseClick<F>
 where
     State: 'static,
     F: Fn(&mut State, leaflet::MouseEvent) + 'static,
@@ -34,7 +34,7 @@ where
 
     type ViewState = ();
 
-    fn build(&self, ctx: &mut MapCtx) -> (Self::Element, Self::ViewState) {
+    fn build(&self, ctx: &mut MapCtx, _app_state: &mut State) -> (Self::Element, Self::ViewState) {
         ctx.with_id(ON_MOUSE_CLICK_ID, |ctx| {
             let thunk = ctx.dom_ctx.message_thunk();
             // TODO use add/remove_event_listener, for graceful lifecycle handling
@@ -44,13 +44,26 @@ where
         })
     }
 
-    fn rebuild(&self, _: &Self, _: &mut Self::ViewState, ctx: &mut MapCtx, _: Mut<Self::Element>) {
+    fn rebuild(
+        &self,
+        _: &Self,
+        _: &mut Self::ViewState,
+        ctx: &mut MapCtx,
+        _: Mut<Self::Element>,
+        _app_state: &mut State,
+    ) {
         ctx.with_id(ON_MOUSE_CLICK_ID, |_ctx| {
             // TODO
         })
     }
 
-    fn teardown(&self, _: &mut Self::ViewState, ctx: &mut MapCtx, _: Mut<Self::Element>) {
+    fn teardown(
+        &self,
+        _: &mut Self::ViewState,
+        ctx: &mut MapCtx,
+        _: Mut<Self::Element>,
+        _app_state: &mut State,
+    ) {
         ctx.with_id(ON_MOUSE_CLICK_ID, |_ctx| {
             // TODO
         })
@@ -61,11 +74,11 @@ where
         _: &mut Self::ViewState,
         id_path: &[ViewId],
         message: DynMessage,
-        state: &mut State,
-    ) -> MessageResult<Action, DynMessage> {
+        app_state: &mut State,
+    ) -> MessageResult<Action> {
         debug_assert!(id_path.len() == 1 && id_path[0] == ON_MOUSE_CLICK_ID);
         let ClickMessage(ev) = *message.downcast().unwrap_throw();
-        (self.callback)(state, ev);
+        (self.callback)(app_state, ev);
         MessageResult::Nop
     }
 }

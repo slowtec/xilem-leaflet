@@ -15,7 +15,7 @@ pub struct TileLayer {
 
 impl ViewMarker for TileLayer {}
 
-impl<State, Action> View<State, Action, MapCtx, DynMessage> for TileLayer
+impl<State, Action> View<State, Action, MapCtx> for TileLayer
 where
     State: 'static,
 {
@@ -23,7 +23,7 @@ where
 
     type ViewState = ();
 
-    fn build(&self, ctx: &mut MapCtx) -> (Self::Element, Self::ViewState) {
+    fn build(&self, ctx: &mut MapCtx, _app_state: &mut State) -> (Self::Element, Self::ViewState) {
         let tile_layer = leaflet::TileLayer::new(self.url_template);
         ctx.map().add_layer(&tile_layer);
         (MapChildElement::TileLayer(tile_layer), ())
@@ -35,6 +35,7 @@ where
         _: &mut Self::ViewState,
         map_ctx: &mut MapCtx,
         element: Mut<Self::Element>,
+        _app_state: &mut State,
     ) {
         if prev.url_template != self.url_template {
             let tile_layer = element.as_tile_layer_mut();
@@ -44,7 +45,13 @@ where
         }
     }
 
-    fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+    fn teardown(
+        &self,
+        _: &mut Self::ViewState,
+        _: &mut MapCtx,
+        e: Mut<Self::Element>,
+        _app_state: &mut State,
+    ) {
         e.as_tile_layer_mut().remove();
     }
 
@@ -54,7 +61,7 @@ where
         _: &[ViewId],
         _: DynMessage,
         _: &mut State,
-    ) -> MessageResult<Action, DynMessage> {
+    ) -> MessageResult<Action> {
         MessageResult::Nop
     }
 }

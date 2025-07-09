@@ -79,12 +79,12 @@ impl Default for MarkerOptions {
 
 impl ViewMarker for Marker {}
 
-impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker {
+impl<State, Action> View<State, Action, MapCtx> for Marker {
     type Element = MapChildElement;
 
     type ViewState = ();
 
-    fn build(&self, ctx: &mut MapCtx) -> (Self::Element, Self::ViewState) {
+    fn build(&self, ctx: &mut MapCtx, _app_state: &mut State) -> (Self::Element, Self::ViewState) {
         let options = leaflet::MarkerOptions::new();
         if let Some(title) = &self.options.title {
             options.set_title(title.clone());
@@ -98,7 +98,14 @@ impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker {
         (MapChildElement::Marker(marker), ())
     }
 
-    fn rebuild(&self, prev: &Self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+    fn rebuild(
+        &self,
+        prev: &Self,
+        _: &mut Self::ViewState,
+        _: &mut MapCtx,
+        e: Mut<Self::Element>,
+        _app_state: &mut State,
+    ) {
         debug_assert!(
             matches!(e, MapChildElement::Marker(_)),
             "not a marker: {e:?}"
@@ -112,7 +119,13 @@ impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker {
         }
     }
 
-    fn teardown(&self, _: &mut Self::ViewState, _: &mut MapCtx, e: Mut<Self::Element>) {
+    fn teardown(
+        &self,
+        _: &mut Self::ViewState,
+        _: &mut MapCtx,
+        e: Mut<Self::Element>,
+        _app_state: &mut State,
+    ) {
         e.as_marker_mut().remove();
     }
 
@@ -122,7 +135,7 @@ impl<State, Action> View<State, Action, MapCtx, DynMessage> for Marker {
         _: &[ViewId],
         message: DynMessage,
         _: &mut State,
-    ) -> MessageResult<Action, DynMessage> {
+    ) -> MessageResult<Action> {
         MessageResult::Stale(message)
     }
 }

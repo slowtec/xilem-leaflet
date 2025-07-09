@@ -24,6 +24,7 @@ impl MapCtx {
     fn new(dom_ctx: ViewCtx, map: leaflet::Map) -> Self {
         Self { dom_ctx, map }
     }
+
     pub const fn map(&self) -> &leaflet::Map {
         &self.map
     }
@@ -43,13 +44,10 @@ impl ViewPathTracker for MapCtx {
     }
 }
 
-pub trait MapChildren<State, Action>:
-    ViewSequence<State, Action, MapCtx, MapChildElement, DynMessage>
-{
-}
+pub trait MapChildren<State, Action>: ViewSequence<State, Action, MapCtx, MapChildElement> {}
 
 impl<V, State, Action> MapChildren<State, Action> for V where
-    V: ViewSequence<State, Action, MapCtx, MapChildElement, DynMessage>
+    V: ViewSequence<State, Action, MapCtx, MapChildElement>
 {
 }
 
@@ -167,13 +165,10 @@ impl ElementSplice<MapChildElement> for MapChildrenSplice<'_> {
 
 /// This is a marker trait that is used to pass only map-specific children
 /// to the [`map`] function.
-pub trait MapChild<State, Action>:
-    View<State, Action, ViewCtx, DynMessage, Element = MapChildElement>
-{
-}
+pub trait MapChild<State, Action>: View<State, Action, ViewCtx, Element = MapChildElement> {}
 
 impl<V, State, Action> MapChild<State, Action> for V where
-    V: View<State, Action, ViewCtx, DynMessage, Element = MapChildElement>
+    V: View<State, Action, ViewCtx, Element = MapChildElement>
 {
 }
 
@@ -283,7 +278,7 @@ pub enum MapMessage {
     InitMap,
 }
 
-impl<MapDomView, State, Action, Children> View<State, Action, ViewCtx, DynMessage>
+impl<MapDomView, State, Action, Children> View<State, Action, ViewCtx>
     for Map<MapDomView, State, Action, Children>
 where
     State: 'static,
@@ -295,8 +290,8 @@ where
 
     type ViewState = MapViewState<MapDomView::ViewState, Children::SeqState>;
 
-    fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
-        let (map_dom_element, map_dom_state) = self.map_view.build(ctx);
+    fn build(&self, ctx: &mut ViewCtx, app_state: &mut State) -> (Self::Element, Self::ViewState) {
+        let (map_dom_element, map_dom_state) = self.map_view.build(ctx, app_state);
 
         let map_options = leaflet::MapOptions::default();
         let leaflet_map =
@@ -305,7 +300,9 @@ where
         let mut elements = AppendVec::default();
         let view_state = ctx.as_owned(|dom_ctx| {
             let mut map_ctx = MapCtx::new(dom_ctx, leaflet_map.clone());
-            let children_state = self.children.seq_build(&mut map_ctx, &mut elements);
+            let children_state = self
+                .children
+                .seq_build(&mut map_ctx, &mut elements, app_state);
             let view_state = MapViewState {
                 leaflet_map: map_ctx.map,
                 map_dom_state,
@@ -334,9 +331,15 @@ where
         view_state: &mut Self::ViewState,
         ctx: &mut ViewCtx,
         element: Mut<Self::Element>,
+        app_state: &mut State,
     ) {
-        self.map_view
-            .rebuild(&prev.map_view, &mut view_state.map_dom_state, ctx, element);
+        self.map_view.rebuild(
+            &prev.map_view,
+            &mut view_state.map_dom_state,
+            ctx,
+            element,
+            app_state,
+        );
         if prev.zoom != self.zoom || prev.center != self.center {
             apply_zoom_and_center(&view_state.leaflet_map, self.zoom, self.center);
         }
@@ -347,18 +350,26 @@ where
                 &mut view_state.children_state,
                 &mut map_ctx,
                 &mut MapChildrenSplice::new(&mut view_state.children),
+                app_state,
             );
             (map_ctx.dom_ctx, ())
         });
     }
 
-    fn teardown(&self, view_state: &mut Self::ViewState, ctx: &mut ViewCtx, _: Mut<Self::Element>) {
+    fn teardown(
+        &self,
+        view_state: &mut Self::ViewState,
+        ctx: &mut ViewCtx,
+        _: Mut<Self::Element>,
+        app_state: &mut State,
+    ) {
         ctx.as_owned(|dom_ctx| {
             let mut map_ctx = MapCtx::new(dom_ctx, view_state.leaflet_map.clone());
             self.children.seq_teardown(
                 &mut view_state.children_state,
                 &mut map_ctx,
                 &mut MapChildrenSplice::new(&mut view_state.children),
+                app_state,
             );
             (map_ctx.dom_ctx, ())
         });
@@ -370,7 +381,7 @@ where
         id_path: &[ViewId],
         message: DynMessage,
         app_state: &mut State,
-    ) -> MessageResult<Action, DynMessage> {
+    ) -> MessageResult<Action> {
         self.children
             .seq_message(&mut view_state.children_state, id_path, message, app_state)
     }

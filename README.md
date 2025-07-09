@@ -20,4 +20,4 @@ trunk serve
 
 ## License
 
-Copyright (c) 2024 [slowtec GmbH](https://slowtec.de)
+Copyright (c) 2024 - 2025 [slowtec GmbH](https://slowtec.de)
